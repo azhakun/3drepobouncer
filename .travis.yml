@@ -6,7 +6,7 @@ compiler:
 env:
     global:
         - MONGODB_VERSION=2.6.10
-        - secure: "hflwozp9kOP/BniwhN0RsyAY898fC+Lb/w1ejj/nu9dnqodEGdK5Je33IWV/kHCw8HNaK6nQGd1+nKDzxkaMOHrDnn+VIPRAfTwlE5RbfpFMP0mDVI6nie56BqZzTH4CocYJUQtRQqYMSAiIFb37JmmYI+1a5q5+7UeEdSfZJGza2/OwaU/9L26UbsLLCJ7pUNu8qJNmXCmNP2wUA0OTVNgVSSa1AmSUptCK+bHVNC7dRlf31+g2x0dBjxt+PuUU51V9g70zLNR6jL5QYRVQDTMlViMAJN2070feuXPrSUwqltJf0i7ZSQS1QHOTYYff6SX8a92SO6HRQWbyDodsoh2O9gPzagjOlQTYj7qEvD19MQJFPN/9P9cqdSMeDvRLRleLw0HN8fNwKwxknst7X6KRWJ0Y6HHvtSbIHHxFuVUZe+k3bIHOP6gpFCHxxn9Rw1Yjr0Dmu80kwjpRLi7NVE+f0I8GheXIAMbga4i5c0opqVF+Vzc5SA/+a+HvvI7tqDZOjARF2pPzj7yFzvuNHhuATYTOXX9toYqqmYdZxbNB+hZCSVyANQZsZ/CTIArvwLtPPlFLjBkbr1u81gIkVTEbfMPm003YqtcFzNagbf4rd1GzEgncAccMOMqyewTbVrhoEleSogdofY67rfLtfIrebCHkCCfLelvQjrixae0="
+    - secure: "hflwozp9kOP/BniwhN0RsyAY898fC+Lb/w1ejj/nu9dnqodEGdK5Je33IWV/kHCw8HNaK6nQGd1+nKDzxkaMOHrDnn+VIPRAfTwlE5RbfpFMP0mDVI6nie56BqZzTH4CocYJUQtRQqYMSAiIFb37JmmYI+1a5q5+7UeEdSfZJGza2/OwaU/9L26UbsLLCJ7pUNu8qJNmXCmNP2wUA0OTVNgVSSa1AmSUptCK+bHVNC7dRlf31+g2x0dBjxt+PuUU51V9g70zLNR6jL5QYRVQDTMlViMAJN2070feuXPrSUwqltJf0i7ZSQS1QHOTYYff6SX8a92SO6HRQWbyDodsoh2O9gPzagjOlQTYj7qEvD19MQJFPN/9P9cqdSMeDvRLRleLw0HN8fNwKwxknst7X6KRWJ0Y6HHvtSbIHHxFuVUZe+k3bIHOP6gpFCHxxn9Rw1Yjr0Dmu80kwjpRLi7NVE+f0I8GheXIAMbga4i5c0opqVF+Vzc5SA/+a+HvvI7tqDZOjARF2pPzj7yFzvuNHhuATYTOXX9toYqqmYdZxbNB+hZCSVyANQZsZ/CTIArvwLtPPlFLjBkbr1u81gIkVTEbfMPm003YqtcFzNagbf4rd1GzEgncAccMOMqyewTbVrhoEleSogdofY67rfLtfIrebCHkCCfLelvQjrixae0="
 
 services:
     - mongodb
@@ -20,8 +20,8 @@ addons:
             - g++-4.9
     coverity_scan:
         project:
-        name: "3drepo/3drepobouncer"
-        description: "3D Repo Bouncer - A C++ library"
+            name: "3drepo/3drepobouncer"
+            description: "3D Repo Bouncer - A C++ library"
         notification_email: carmen.fan@3drepo.org
         build_command_prepend: "cmake -DREPO_BUILD_CLIENT=ON -DREPO_BUILD_TESTS=ON  -DCMAKE_BUILD_TYPE=Release ../"
         build_command:   "sudo make -j2 install"
