@@ -255,8 +255,11 @@ namespace repo{
 
 
 					protected:
-
-
+						/**
+						* Validate the node. This is called in constructor
+						* throws exception if node is invalid
+						*/
+						virtual void validate() const;
 
 						/*
 						*	------------- node fields --------------

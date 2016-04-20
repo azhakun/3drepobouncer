@@ -19,6 +19,7 @@
 */
 
 #include "repo_node.h"
+#include "../../../lib/exception/repo_bson_exception.h"
 
 using namespace repo::core::model;
 
@@ -27,6 +28,33 @@ RepoNode::RepoNode(RepoBSON bson,
 	
 	if (binMapping.size() == 0)
 		bigFiles = bson.getFilesMapping();
+
+	validate();
+
+}
+
+void RepoNode::validate() const
+{
+	//All Repo nodes needs to have a unique ID and a shared ID
+	std::string errMsg;
+
+	if (!hasField(REPO_NODE_LABEL_ID))
+	{
+		throw repo::lib::exception::RepoBSONException("Repo Node has no unique ID");
+	}
+	else if (getField(REPO_NODE_LABEL_ID).type() != ElementType::UUID)
+	{
+		throw repo::lib::exception::RepoBSONException("Repo Node has unrecognised unique ID type");
+	}
+
+	if (!hasField(REPO_NODE_LABEL_SHARED_ID))
+	{
+		throw repo::lib::exception::RepoBSONException("Repo Node has no shared ID");
+	}
+	else if (getField(REPO_NODE_LABEL_ID).type() != ElementType::UUID)
+	{
+		throw repo::lib::exception::RepoBSONException("Repo Node has unrecognised shared ID type");
+	}
 
 }
 
