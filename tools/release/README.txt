@@ -1,4 +1,4 @@
-3D Repo Bouncer Library v1.3.3
+3D Repo Bouncer Library v1.6.1
 
 This is the internal library used for 3D Repo GUI.
 
@@ -26,8 +26,6 @@ If you need any help, please contact support@3drepo.org, we
 look forward to hear from you.
 
 ========================= Improvements =========================
-* (ISSUE #131) Improvements to IFC Tree representation
+* (ISSUE #159) Fixed vector out of range exception on SRC export
 
-
-
-
+========================= New Features =========================

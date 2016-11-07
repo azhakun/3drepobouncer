@@ -94,9 +94,8 @@ bool IFCUtilsGeometry::generateGeometry(std::string &errMsg)
 	IfcGeom::Iterator<double> contextIterator(settings, file);
 
 	std::set<std::string> exclude_entities;
-	//Do not generate geometry for openings and spaces
 	exclude_entities.insert("IfcOpeningElement");
-	//exclude_entities.insert("IfcSpace");
+	exclude_entities.insert("IfcMember");
 	contextIterator.excludeEntities(exclude_entities);
 
 	repoTrace << "Initialising Geom iterator";
@@ -223,6 +222,7 @@ void IFCUtilsGeometry::retrieveGeometryFromIterator(
 			std::unordered_map<int, std::unordered_map<int, int>>  indexMapping;
 			std::unordered_map<int, int> vertexCount;
 			std::unordered_map<int, std::vector<double>> post_vertices, post_normals, post_uvs;
+			std::unordered_map<int, std::string> post_materials;
 			std::unordered_map<int, std::vector<repo_face_t>> post_faces;
 
 			auto matIndIt = ob_geo->geometry().material_ids().begin();
@@ -242,7 +242,7 @@ void IFCUtilsGeometry::retrieveGeometryFromIterator(
 					}
 				}
 			}
-
+			
 			for (int iface = 0; iface < faces.size(); iface += 3)
 			{
 				auto matInd = *matIndIt;
@@ -262,7 +262,8 @@ void IFCUtilsGeometry::retrieveGeometryFromIterator(
 
 					auto material = ob_geo->geometry().materials()[matInd];
 					std::string matName = useMaterialNames ? material.original_name() : material.name();
-					allMaterials.push_back(matName);
+
+					post_materials[matInd] = matName;
 					if (materials.find(matName) == materials.end())
 					{
 						//new material, add it to the vector
@@ -314,6 +315,7 @@ void IFCUtilsGeometry::retrieveGeometryFromIterator(
 
 				allIds.push_back(guid);
 				allNames.push_back(name);
+				allMaterials.push_back(post_materials[index]);
 			}
 		}
 		if (allIds.size() % 100 == 0)
