@@ -35,7 +35,7 @@ using namespace repo::core::model;
 
 const std::vector<std::string> RepoScene::collectionsInProject = { "scene", "scene.files", "scene.chunks", "stash.3drepo", "stash.3drepo.files", "stash.3drepo.chunks", "stash.x3d", "stash.x3d.files",
 "stash.json_mpc.files", "stash.json_mpc.chunks", "stash.x3d.chunks", "stash.gltf", "stash.gltf.files", "stash.gltf.chunks", "stash.src", "stash.src.files", "stash.src.chunks", "history",
-"history.files", "history.chunks", "issues", "wayfinder" };
+"history.files", "history.chunks", "issues", "wayfinder" , "groups"};
 
 RepoScene::RepoScene(
 	const std::string &database,
@@ -47,7 +47,6 @@ RepoScene::RepoScene(
 	const std::string &issuesExt,
 	const std::string &srcExt,
 	const std::string &gltfExt,
-	const std::string &x3dExt,
 	const std::string &jsonExt)
 	: AbstractGraph(database, projectName),
 	sceneExt(sanitizeExt(sceneExt)),
@@ -57,7 +56,6 @@ RepoScene::RepoScene(
 	issuesExt(sanitizeExt(issuesExt)),
 	srcExt(sanitizeExt(srcExt)),
 	gltfExt(sanitizeExt(gltfExt)),
-	x3dExt(sanitizeExt(x3dExt)),
 	jsonExt(sanitizeExt(jsonExt)),
 	headRevision(true),
 	unRevisioned(false),
@@ -89,7 +87,6 @@ RepoScene::RepoScene(
 	const std::string              &issuesExt,
 	const std::string              &srcExt,
 	const std::string              &gltfExt,
-	const std::string              &x3dExt,
 	const std::string              &jsonExt
 	)
 	: AbstractGraph("", ""),
@@ -100,7 +97,6 @@ RepoScene::RepoScene(
 	issuesExt(sanitizeExt(issuesExt)),
 	srcExt(sanitizeExt(srcExt)),
 	gltfExt(sanitizeExt(gltfExt)),
-	x3dExt(sanitizeExt(x3dExt)),
 	jsonExt(sanitizeExt(jsonExt)),
 	headRevision(true),
 	unRevisioned(true),
@@ -954,15 +950,23 @@ std::vector<RepoNode*> RepoScene::getParentNodesFiltered(
 	const RepoNode* node,
 	const NodeType &type) const
 {
-	std::vector<repoUUID> parentIDs = node->getParentIDs();
 	std::vector<RepoNode*> results;
-	for (const repoUUID &id : parentIDs)
+	if (node)
 	{
-		RepoNode* node = getNodeBySharedID(gType, id);
-		if (node && node->getTypeAsEnum() == type)
+		std::vector<repoUUID> parentIDs = node->getParentIDs();
+
+		for (const repoUUID &id : parentIDs)
 		{
-			results.push_back(node);
+			RepoNode* node = getNodeBySharedID(gType, id);
+			if (node && node->getTypeAsEnum() == type)
+			{
+				results.push_back(node);
+			}
 		}
+	}
+	else
+	{
+		repoError << "Trying to retrieve parent nodes from a null ptr child node";
 	}
 
 	return results;
@@ -1151,7 +1155,10 @@ bool RepoScene::loadRevision(
 	bool success = true;
 
 	if (!handler)
+	{
+		errMsg = "Cannot load revision with an empty database handler";
 		return false;
+	}
 
 	RepoBSON bson;
 	repoTrace << "loading revision : " << databaseName << "." << projectName << " head Revision: " << headRevision;
@@ -1186,7 +1193,11 @@ bool RepoScene::loadScene(
 	std::string &errMsg){
 	bool success = true;
 
-	if (!handler) return false;
+	if (!handler)
+	{
+		errMsg = "Cannot load revision with an empty database handler";
+		return false;
+	}
 
 	if (!revNode){
 		//try to load revision node first.
@@ -1582,6 +1593,22 @@ void RepoScene::reorientateDirectXModel()
 	}
 }
 
+void RepoScene::resetChangeSet()
+{
+	newRemoved.clear();
+	newModified.clear();
+	newAdded.clear();
+	newCurrent.clear();
+	std::vector<repoUUID> sharedIds;
+	//boost::copy(graph.nodesByUniqueID | boost::adaptors::map_keys, std::back_inserter(newCurrent));
+	boost::copy(graph.sharedIDtoUniqueID | boost::adaptors::map_keys, std::back_inserter(sharedIds));
+	newAdded.insert(sharedIds.begin(), sharedIds.end());
+	revNode = nullptr;
+	unRevisioned = true;
+	databaseName = projectName = "";
+
+}
+
 void RepoScene::setWorldOffset(
 	const std::vector<double> &offset)
 {
@@ -1619,10 +1646,11 @@ void RepoScene::shiftModel(
 	}
 }
 
-void RepoScene::updateRevisionStatus(
+bool RepoScene::updateRevisionStatus(
 	repo::core::handler::AbstractDatabaseHandler *handler,
 	const RevisionNode::UploadStatus &status)
 {
+	bool success = false;
 	if (revNode)
 	{
 		auto updatedRev = revNode->cloneAndUpdateStatus(status);
@@ -1631,7 +1659,11 @@ void RepoScene::updateRevisionStatus(
 		{
 			//update revision node
 			std::string errMsg;
-			handler->upsertDocument(databaseName, projectName + "." + revExt, updatedRev, true, errMsg);
+			success = handler->upsertDocument(databaseName, projectName + "." + revExt, updatedRev, true, errMsg);
+		}
+		else
+		{
+			repoError << "Cannot update revision status without a database handler";
 		}
 
 		revNode->swap(updatedRev);
@@ -1641,6 +1673,8 @@ void RepoScene::updateRevisionStatus(
 	{
 		repoError << "Trying to update the status of a revision when the scene is not revisioned!";
 	}
+
+	return success;
 }
 
 void RepoScene::printStatistics(std::iostream &output)

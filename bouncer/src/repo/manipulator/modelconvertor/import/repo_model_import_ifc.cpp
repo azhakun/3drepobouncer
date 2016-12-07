@@ -30,10 +30,6 @@ using namespace repo::manipulator::modelconvertor;
 IFCModelImport::IFCModelImport(const ModelImportConfig *settings) :
 AbstractModelImport(settings)
 {
-	if (settings)
-	{
-		repoWarning << "IFC importer currently ignores all import settings. Any bespoke configurations will be ignored.";
-	}
 }
 
 IFCModelImport::~IFCModelImport()
@@ -42,27 +38,6 @@ IFCModelImport::~IFCModelImport()
 
 repo::core::model::RepoScene* IFCModelImport::generateRepoScene()
 {
-	/*repo::core::model::RepoNodeSet transNodes, meshNodes, matNodes, dummy;
-	auto rootNode = new repo::core::model::TransformationNode(repo::core::model::RepoBSONFactory::makeTransformationNode());
-	transNodes.insert(rootNode);
-	auto rootSharedID = rootNode->getSharedID();
-
-	for (const auto &id : meshes)
-	{
-	for (auto &mesh : id.second)
-	{
-	*mesh = mesh->cloneAndAddParent(rootSharedID);
-	meshNodes.insert(mesh);
-	}
-	}
-
-	for (auto &mat : materials)
-	matNodes.insert(mat.second);
-
-	auto scene = new repo::core::model::RepoScene({ ifcFile }, dummy, meshNodes, matNodes, dummy, dummy, transNodes);
-	scene->setWorldOffset(offset);
-	return scene;*/
-
 	IFCUtilsParser parserUtil(ifcFile);
 	std::string errMsg;
 	auto scene = parserUtil.generateRepoScene(errMsg, meshes, materials, offset);
@@ -80,7 +55,7 @@ bool IFCModelImport::importModel(std::string filePath, std::string &errMsg)
 	repoInfo << "=== IMPORTING MODEL WITH IFC OPEN SHELL ===";
 	bool success = false;
 
-	IFCUtilsGeometry geoUtil(filePath);
+	IFCUtilsGeometry geoUtil(filePath, settings);
 	if (success = geoUtil.generateGeometry(errMsg))
 	{
 		//generate tree;
