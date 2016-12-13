@@ -1015,11 +1015,11 @@ repo::core::model::RepoScene* AssimpModelImport::convertAiSceneToRepoScene()
 				auto direction = assimpLight->mDirection - offsetVec;
 
 				auto light = new repo::core::model::LightNode(repo::core::model::RepoBSONFactory::makeLightNode(
-					type, { position.x, position.y, position.z },
-					{ direction.x, direction.y, direction.z },
-					{ assimpLight->mColorAmbient.r, assimpLight->mColorAmbient.g, assimpLight->mColorAmbient.b },
-					{ assimpLight->mColorSpecular.r, assimpLight->mColorSpecular.g, assimpLight->mColorSpecular.b },
-					{ assimpLight->mColorDiffuse.r, assimpLight->mColorDiffuse.g, assimpLight->mColorDiffuse.b },
+					type, { (float)position.x, (float)position.y, (float)position.z },
+					{ (float)direction.x, (float)direction.y, (float)direction.z },
+					{ (float)assimpLight->mColorAmbient.r, (float)assimpLight->mColorAmbient.g, (float)assimpLight->mColorAmbient.b },
+					{ (float)assimpLight->mColorSpecular.r, (float)assimpLight->mColorSpecular.g, (float)assimpLight->mColorSpecular.b },
+					{ (float)assimpLight->mColorDiffuse.r, (float)assimpLight->mColorDiffuse.g, (float)assimpLight->mColorDiffuse.b },
 					assimpLight->mAngleInnerCone, assimpLight->mAngleOuterCone, assimpLight->mAttenuationConstant,
 					assimpLight->mAttenuationLinear, assimpLight->mAttenuationQuadratic, lightName
 					));

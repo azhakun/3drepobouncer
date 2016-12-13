@@ -142,6 +142,10 @@ MeshMapReorganiser::getSplitMapping() const {
 	return reMapSuccess ? splitMap : std::unordered_map<repoUUID, std::vector<uint32_t>, RepoUUIDHasher>();
 }
 
+uint32_t MeshMapReorganiser::getNumberOfSplitMeshes() const {
+	return reMapSuccess ? reMappedMappings.size() : 0;
+}
+
 repo::core::model::MeshNode MeshMapReorganiser::getRemappedMesh() const
 {
 	if (reMapSuccess)

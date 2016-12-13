@@ -66,6 +66,8 @@ namespace repo{
 				*/
 				std::unordered_map<repoUUID, std::vector<uint32_t>, RepoUUIDHasher> getSplitMapping() const;
 
+				uint32_t getNumberOfSplitMeshes() const;
+
 			private:
 				/**
 				* Complete a submesh by filling in the ending parts of  mesh mapping
