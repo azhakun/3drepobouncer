@@ -185,7 +185,8 @@ repo_web_buffers_t SRCModelExport::getAllFilesExportedAsBuffer() const
 bool SRCModelExport::generateJSONMapping(
 	const repo::core::model::MeshNode  *mesh,
 	const repo::core::model::RepoScene *scene,
-	const std::unordered_map<repoUUID, std::vector<uint32_t>, RepoUUIDHasher> &splitMapping)
+	const std::unordered_map<repoUUID, std::vector<uint32_t>, RepoUUIDHasher> &splitMapping,
+	const uint32_t numSplitMeshes)
 {
 	bool success;
 	if (success = mesh)
@@ -232,7 +233,7 @@ bool SRCModelExport::generateJSONMapping(
 		jsonTree.addArrayObjects(MP_LABEL_APPEARANCE, matChildrenTrees);
 
 		std::vector<repo::lib::PropertyTree> mappingTrees;
-		bool singleMesh = mappings.size() == 1;
+		bool singleMesh = numSplitMeshes == 1;
 		std::string meshUID = singleMesh ? UUIDtoString(mappings[0].mesh_id) : UUIDtoString(mesh->getUniqueID());
 		//Could get the mesh split function to pass a mapping out so we don't do this again.
 		for (size_t i = 0; i < mappingLength; ++i)
@@ -241,7 +242,7 @@ bool SRCModelExport::generateJSONMapping(
 			if (mapIt != splitMapping.end())
 			{
 				for (const uint32_t &subMeshID : mapIt->second)
-				{
+				{	
 					repo::lib::PropertyTree mappingTree;
 
 					mappingTree.addToTree(MP_LABEL_NAME, UUIDtoString(mappings[i].mesh_id));
@@ -299,6 +300,8 @@ bool SRCModelExport::generateTreeRepresentation(
 			repo::manipulator::modelutility::MeshMapReorganiser *reSplitter =
 				new repo::manipulator::modelutility::MeshMapReorganiser(mesh, SRC_MAX_VERTEX_LIMIT);
 			repo::core::model::MeshNode splittedMesh = reSplitter->getRemappedMesh();
+			uint32_t numSplitMeshes = reSplitter->getNumberOfSplitMeshes();
+
 			if (success = !(splittedMesh.isEmpty()))
 			{
 				std::vector<uint16_t> facebuf = reSplitter->getSerialisedFaces();
@@ -323,7 +326,7 @@ bool SRCModelExport::generateTreeRepresentation(
 					++index;
 					if (sepX3d)
 					{
-						success &= generateJSONMapping(mesh, scene, splitMapping);
+						success &= generateJSONMapping(mesh, scene, splitMapping, numSplitMeshes);
 					}
 				}
 				else

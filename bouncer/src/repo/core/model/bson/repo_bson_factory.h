@@ -206,11 +206,11 @@ namespace repo {
 					const repo_color3d_t  &ambientColor,
 					const repo_color3d_t  &specularColor,
 					const repo_color3d_t  &diffuseColor,
-					const float           &innerConeAngle,
-					const float           &outerConeAngle,
-					const float           &attentuationConstant,
-					const float           &attentuationLinear,
-					const float           &attentuationQuadratic,
+					const double          &innerConeAngle,
+					const double          &outerConeAngle,
+					const double          &attentuationConstant,
+					const double          &attentuationLinear,
+					const double          &attentuationQuadratic,
 					const std::string     &name = std::string(),
 					const int             &apiLevel = REPO_NODE_API_LEVEL_1);
 
