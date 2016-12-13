@@ -1,4 +1,4 @@
-3D Repo Bouncer Library v1.6.1
+3D Repo Bouncer Library v1.8.0
 
 This is the internal library used for 3D Repo GUI.
 
@@ -26,6 +26,13 @@ If you need any help, please contact support@3drepo.org, we
 look forward to hear from you.
 
 ========================= Improvements =========================
-* (ISSUE #159) Fixed vector out of range exception on SRC export
+* (ISSUE #92) Fix crashes when database connection is lost
+* (ISSUE #157) Groups collection is now removed when a project is deleted
+* (ISSUE #167) IFCOpenShell imports now use original material names as default
+* (ISSUE #168) Log file is flushed after every log call
 
 ========================= New Features =========================
+* (ISSUE #160) Project permissions are now more fine grained
+* (ISSUE #161) The ability to use Assimp/IFCOpenShell to import ifc files based on config.
+* (ISSUE #163 #164) Some administration and test changes
+* (ISSUE #166) Ability to reset changelist on a RepoScene is added
