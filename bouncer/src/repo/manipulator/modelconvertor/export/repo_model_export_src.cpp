@@ -321,7 +321,7 @@ bool SRCModelExport::generateTreeRepresentation(
 					ext += "?tex_uuid=" + textureID;
 				}
 
-				if (success = addMeshToExport(splittedMesh, index, facebuf, idMapBuf, ext))
+				if (success = addMeshToExport(splittedMesh, index, facebuf, idMapBuf, ext, numSplitMeshes))
 				{
 					++index;
 					if (sepX3d)
@@ -351,7 +351,8 @@ bool SRCModelExport::addMeshToExport(
 	const size_t                           &idx,
 	const std::vector<uint16_t>            &faceBuf,
 	const std::vector<std::vector<float>>  &idMapBuf,
-	const std::string                      &fileExt
+	const std::string                      &fileExt,
+	const double                           &numSplitMeshes
 	)
 {
 	std::vector<repo_mesh_mapping_t> mapping = mesh.getMeshMapping();
@@ -383,7 +384,7 @@ bool SRCModelExport::addMeshToExport(
 
 	size_t uvWritePosition = bufPos;
 	size_t nSubMeshes = mapping.size();
-	bool singleMesh = nSubMeshes == 1;
+	bool singleMesh = numSplitMeshes == 1;
 
 	std::string meshId = singleMesh ? UUIDtoString(mapping[0].mesh_id) : UUIDtoString(mesh.getUniqueID());
 
@@ -423,7 +424,7 @@ bool SRCModelExport::addMeshToExport(
 		std::string idMapID = SRC_PREFIX_IDMAP + meshIDX;
 
 		std::string meshID = meshId;
-		if (singleMesh) meshID += "_" + std::to_string(subMeshIdx);
+		if (!singleMesh) meshID += "_" + std::to_string(subMeshIdx);
 
 		std::string srcAccessors_AttributeViews = SRC_LABEL_ACCESSORS + "." + SRC_LABEL_ACCESSORS_ATTR_VIEWS;
 		std::string srcMesh_MeshID = SRC_LABEL_MESHES + "." + meshID + ".";

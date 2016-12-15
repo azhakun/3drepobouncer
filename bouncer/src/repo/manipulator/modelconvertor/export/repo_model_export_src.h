@@ -68,9 +68,9 @@ namespace repo{
 					const size_t &idx,
 					const std::vector<uint16_t> &faceBuf,
 					const std::vector<std::vector<float>>  &idMapBuf,
-					const std::string                      &fileExt
-					);
-
+					const std::string                      &fileExt,
+					const double                           &numSplitMeshes);
+					
 				/**
 				* Generate JSON mapping for multipart meshes
 				* And add it into the object
