@@ -42,19 +42,24 @@ repo::lib::PropertyTree SelectionTreeMaker::generatePTree(
 	repo::lib::PropertyTree tree;
 	if (currentNode)
 	{
-		std::string idString = UUIDtoString(currentNode->getUniqueID());
-		repoUUID sharedID = currentNode->getSharedID();
+		std::string idString = currentNode->getUniqueID().toString();
+		repo::lib::RepoUUID sharedID = currentNode->getSharedID();
 		std::string childPath = currentPath.empty() ? idString : currentPath + "__" + idString;
 
 		auto children = scene->getChildrenAsNodes(repo::core::model::RepoScene::GraphType::DEFAULT, sharedID);
 		std::vector<repo::lib::PropertyTree> childrenTrees;
 
 		std::vector<repo::core::model::RepoNode*> childrenTypes[2];
+		std::vector<repo::lib::RepoUUID> metaIDs;
 		for (const auto &child : children)
 		{
 			//Ensure IFC Space (if any) are put into the tree first.
 			if (child->getName().find(IFC_TYPE_SPACE_LABEL) != std::string::npos)
 				childrenTypes[0].push_back(child);
+			else if (child->getTypeAsEnum() == repo::core::model::NodeType::METADATA)
+			{
+				metaIDs.push_back(child->getUniqueID());
+			}
 			else
 				childrenTypes[1].push_back(child);
 		}
@@ -102,8 +107,9 @@ repo::lib::PropertyTree SelectionTreeMaker::generatePTree(
 			tree.addToTree("name", name);
 		tree.addToTree("path", childPath);
 		tree.addToTree("_id", idString);
-		tree.addToTree("shared_id", UUIDtoString(sharedID));
+		tree.addToTree("shared_id", sharedID.toString());
 		tree.addToTree("children", childrenTrees);
+		tree.addToTree("meta", metaIDs);
 
 		if (name.find(IFC_TYPE_SPACE_LABEL) != std::string::npos
 			&& currentNode->getTypeAsEnum() == repo::core::model::NodeType::MESH)

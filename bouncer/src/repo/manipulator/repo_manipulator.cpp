@@ -60,7 +60,7 @@ bool RepoManipulator::cleanUp(
 	repo::core::handler::AbstractDatabaseHandler* handler =
 		repo::core::handler::MongoDatabaseHandler::getHandler(databaseAd);
 	modelutility::SceneCleaner cleaner(dbName, projectName, handler);
-	if (success  = cleaner.execute())
+	if (success = cleaner.execute())
 	{
 		repoInfo << dbName << "." << projectName << " has been cleaned up successfully.";
 	}
@@ -146,7 +146,7 @@ repo::core::model::RepoScene* RepoManipulator::createFederatedScene(
 
 	repo::core::model::TransformationNode rootNode =
 		repo::core::model::RepoBSONFactory::makeTransformationNode(
-		repo::core::model::TransformationNode::identityMat(), "<root>");
+		repo::lib::RepoMatrix(), "<root>");
 
 	transNodes.insert(new repo::core::model::TransformationNode(rootNode));
 
@@ -342,7 +342,46 @@ bool RepoManipulator::dropDatabase(
 	repo::core::handler::AbstractDatabaseHandler* handler =
 		repo::core::handler::MongoDatabaseHandler::getHandler(databaseAd);
 	if (handler)
+	{
 		success = handler->dropDatabase(databaseName, errMsg);
+
+		//remove all roles belonging to this database
+		repo::core::model::RepoBSON criteria = BSON(REPO_ROLE_LABEL_DATABASE << databaseName);
+		for (const auto role : handler->findAllByCriteria(REPO_ADMIN, REPO_SYSTEM_ROLES, criteria))
+		{
+			removeRole(databaseAd, cred, repo::core::model::RepoRole(role));
+		}
+
+		//remove privileges associated with this db
+		std::string fieldName = REPO_ROLE_LABEL_PRIVILEGES + std::string(".") + REPO_ROLE_LABEL_RESOURCE + "." + REPO_ROLE_LABEL_DATABASE;
+		repo::core::model::RepoBSON criteria2 = BSON(fieldName << databaseName);
+		for (const auto role : handler->findAllByCriteria(REPO_ADMIN, REPO_SYSTEM_ROLES, criteria2))
+		{
+			auto roleBson = repo::core::model::RepoRole(role);
+			auto privileges = roleBson.getPrivileges();
+			int index = 0;
+			while (index < privileges.size())
+			{
+				if (privileges[index].database == databaseName)
+				{
+					privileges.erase(privileges.begin() + index);
+				}
+				else
+				{
+					index++;
+				}
+			}
+
+			if (privileges.size())
+			{
+				updateRole(databaseAd, cred, roleBson.cloneAndUpdatePrivileges(privileges));
+			}
+			else
+			{
+				removeRole(databaseAd, cred, roleBson);
+			}
+		}
+	}
 	else
 		errMsg = "Unable to locate database handler for " + databaseAd + ". Try reauthenticating.";
 
@@ -383,7 +422,7 @@ repo::core::model::RepoScene* RepoManipulator::fetchScene(
 	const repo::core::model::RepoBSON             *cred,
 	const std::string                             &database,
 	const std::string                             &project,
-	const repoUUID                                &uuid,
+	const repo::lib::RepoUUID                                &uuid,
 	const bool                                    &headRevision,
 	const bool                                    &lightFetch)
 {
@@ -604,18 +643,18 @@ repo::core::model::CollectionStats RepoManipulator::getCollectionStats(
 }
 
 repo::core::model::DatabaseStats RepoManipulator::getDatabaseStats(
-        const std::string                             &databaseAd,
-        const repo::core::model::RepoBSON*	  cred,
-        const std::string                             &database,
-        std::string                                   &errMsg)
+	const std::string                             &databaseAd,
+	const repo::core::model::RepoBSON*	  cred,
+	const std::string                             &database,
+	std::string                                   &errMsg)
 {
-        repo::core::model::DatabaseStats stats;
-        repo::core::handler::AbstractDatabaseHandler* handler =
-                repo::core::handler::MongoDatabaseHandler::getHandler(databaseAd);
-        if (handler)
-                stats = handler->getDatabaseStats(database, errMsg);
+	repo::core::model::DatabaseStats stats;
+	repo::core::handler::AbstractDatabaseHandler* handler =
+		repo::core::handler::MongoDatabaseHandler::getHandler(databaseAd);
+	if (handler)
+		stats = handler->getDatabaseStats(database, errMsg);
 
-        return stats;
+	return stats;
 }
 
 std::map<std::string, std::list<std::string>>
@@ -718,6 +757,12 @@ const repo::manipulator::modelconvertor::ModelImportConfig *config)
 
 	boost::filesystem::path filePathP(filePath);
 	std::string fileExt = filePathP.extension().string();
+
+	if (!repo::manipulator::modelconvertor::AssimpModelImport::isSupportedExts(fileExt))
+	{
+		msg = "Unsupported file extension";
+		return nullptr;
+	}
 	std::transform(fileExt.begin(), fileExt.end(), fileExt.begin(), ::toupper);
 
 	repo::manipulator::modelconvertor::AbstractModelImport* modelConvertor = nullptr;
@@ -1045,7 +1090,7 @@ bool RepoManipulator::saveOriginalFiles(
 					if (out.good())
 					{
 						out.write((char*)rawFile.data(), rawFile.size());
-						out.close();						
+						out.close();
 					}
 					else
 					{

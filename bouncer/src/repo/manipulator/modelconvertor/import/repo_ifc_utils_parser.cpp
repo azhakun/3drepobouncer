@@ -55,18 +55,22 @@ repo::core::model::RepoNodeSet IFCUtilsParser::createTransformations(
 {
 	//The ifc file shoudl always have a IFC Site as the starting tag
 	auto initialElements = ifcfile.entitiesByType(IfcSchema::Type::IfcSite);
-	if (!initialElements->size())
+	if (!initialElements || !initialElements->size())
 	{
-		repoTrace << "Could not find IFC Site tag... trying IfcBuilding";
+		repoWarning << "Could not find IFC Site tag... trying IfcBuilding";
 		//If there is no site, get the buildings
 		initialElements = ifcfile.entitiesByType(IfcSchema::Type::IfcBuilding);
+		if (!initialElements || !initialElements->size())
+		{
+			repoError << "Could not find IFCBuilding tag either. ";
+		}
 	}
 
 	repo::core::model::RepoNodeSet transNodes;
 	if (initialElements->size())
 	{
 		repoTrace << "Initial elements: " << initialElements->size();
-		repoUUID parentID = stringToUUID(REPO_HISTORY_MASTER_BRANCH);
+		repo::lib::RepoUUID parentID = repo::lib::RepoUUID(REPO_HISTORY_MASTER_BRANCH);
 		if (initialElements->size() > 1)
 		{
 			//More than one starting nodes. create a rootNode
@@ -98,7 +102,7 @@ repo::core::model::RepoNodeSet IFCUtilsParser::createTransformationsRecursive(
 	std::unordered_map<std::string, repo::core::model::MaterialNode*>          &materials,
 	repo::core::model::RepoNodeSet											   &metaSet,
 	std::pair<std::vector<std::string>, std::vector<std::string>>               &metaValue,
-	const repoUUID															   &parentID,
+	const repo::lib::RepoUUID															   &parentID,
 	const std::set<int>													       &ancestorsID
 	)
 {
@@ -145,17 +149,17 @@ repo::core::model::RepoNodeSet IFCUtilsParser::createTransformationsRecursive(
 
 	determineActionsByElementType(ifcfile, element, myMetaValues, createElement, traverseChildren, isIFCSpace, extraChildren);
 
-	repoUUID transID = parentID;
+	repo::lib::RepoUUID transID = parentID;
 	repo::core::model::RepoNodeSet transNodeSet;
 
 	if (isIFCSpace) name += " " + IFC_TYPE_SPACE_LABEL;
 
 	if (createElement)
 	{
-		std::vector<repoUUID> parents;
-		if (UUIDtoString(parentID) != REPO_HISTORY_MASTER_BRANCH) parents.push_back(parentID);
+		std::vector<repo::lib::RepoUUID> parents;
+		if (parentID.toString() != REPO_HISTORY_MASTER_BRANCH) parents.push_back(parentID);
 
-		auto transNode = repo::core::model::RepoBSONFactory::makeTransformationNode(repo::core::model::TransformationNode::identityMat(), name, parents);
+		auto transNode = repo::core::model::RepoBSONFactory::makeTransformationNode(repo::lib::RepoMatrix(), name, parents);
 		transID = transNode.getSharedID();
 
 		transNodeSet.insert(new repo::core::model::TransformationNode(transNode));
@@ -200,10 +204,9 @@ repo::core::model::RepoNodeSet IFCUtilsParser::createTransformationsRecursive(
 				}
 				catch (IfcParse::IfcException &e)
 				{
-					repoError << "Failed to find child entity " << childrenId << " ("<< e.what() <<")";
+					repoError << "Failed to find child entity " << childrenId << " (" << e.what() << ")";
 					missingEntities = true;
 				}
-				
 			}
 		}
 	}
@@ -245,6 +248,12 @@ repo::core::model::RepoScene* IFCUtilsParser::generateRepoScene(
 	repoInfo << "Creating Transformations...";
 	repo::core::model::RepoNodeSet dummy, meshSet, matSet, metaSet;
 	repo::core::model::RepoNodeSet transNodes = createTransformations(ifcfile, meshes, materials, metaSet);
+
+	if (!transNodes.size())
+	{
+		repoError << "Failed to generate a Tree from the IFC file.";
+		return nullptr;
+	}
 	for (auto &m : meshes)
 	{
 		for (auto &mesh : m.second)
