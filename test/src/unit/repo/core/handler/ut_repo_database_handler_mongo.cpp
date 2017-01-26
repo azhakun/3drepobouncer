@@ -741,7 +741,6 @@ TEST(MongoDatabaseHandlerTest, FindOneByCriteria)
 	EXPECT_FALSE(results.isEmpty());
 	EXPECT_EQ(results.getField("_id"), search.getField("_id"));
 
-	EXPECT_TRUE(handler->findOneByCriteria(REPO_GTEST_DBNAME1, REPO_GTEST_DBNAME1_PROJ + ".scene", repo::core::model::RepoBSON()).isEmpty());
 	EXPECT_TRUE(handler->findOneByCriteria("", REPO_GTEST_DBNAME1_PROJ + ".scene", search).isEmpty());
 	EXPECT_TRUE(handler->findOneByCriteria(REPO_GTEST_DBNAME1, "", search).isEmpty());
 }

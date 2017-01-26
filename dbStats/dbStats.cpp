@@ -42,7 +42,7 @@ static int64_t getTimestampOfFirstRevision(
 	return bson.getTimestampInt64();	
 }
 
-static void getNewProjectsStatistics(
+static void getProjectsStatistics(
 	repo::RepoController                      *controller,
 	const repo::RepoController::RepoToken     *token,
 	repo::core::handler::MongoDatabaseHandler *handler
@@ -57,7 +57,6 @@ static void getNewProjectsStatistics(
 	{
 		
 		auto dbName = dbEntry.first;
-
 		for (const auto project : dbEntry.second)
 		{
 			totalNProjects++;
@@ -81,7 +80,7 @@ static void getNewProjectsStatistics(
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
-			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \Projects: " << monthEntry.second;
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tProjects: " << monthEntry.second;
 		}
 	}
 	repoInfo << "Total #Projects: " << totalNProjects;
@@ -125,6 +124,7 @@ static void getNewUsersPerMonth(
 	int maxYear = currTime->tm_year + 1900;
 	int maxMonth = currTime->tm_mon + 1;
 
+	int nUsers = 0;
 	while (maxYear > year || (maxYear == year && maxMonth >= month))
 	{
 		int nextMonth = month == 12 ? 1 : month + 1;
@@ -132,11 +132,14 @@ static void getNewUsersPerMonth(
 
 		auto from = getTimeStamp(year, month);
 		auto to = getTimeStamp(nextYear, nextMonth);
-		repoInfo << "Year: " << year << "\tMonth: " << month << " \tUsers: " << getNewUsersWithinDuration(handler, paidUsers, from, to);
+		auto users = getNewUsersWithinDuration(handler, paidUsers, from, to);
+		nUsers += users;
+		repoInfo << "Year: " << year << "\tMonth: " << month << " \tUsers: " <<  users;
 	
 		year = nextYear;
 		month = nextMonth;
 	}
+	repoInfo << "Total Users: " << 
 }
 
 int main(int argc, char* argv[])
@@ -163,5 +166,5 @@ int main(int argc, char* argv[])
 	repoInfo << "======== NEW PAID USERS PER MONTH ==========";
 	getNewUsersPerMonth(handler, true);
 	repoInfo << "======== NEW PROJECTS PER MONTH =========";
-	getNewProjectsStatistics(controller, token, handler);
+	getProjectsStatistics(controller, token, handler);
 }
