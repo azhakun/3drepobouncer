@@ -35,11 +35,40 @@ static void getYearMonthFromTimeStamp(
 static int64_t getTimestampOfFirstRevision(
 	repo::core::handler::MongoDatabaseHandler *handler,
 	const std::string                          &dbName,
-	const std::string                          &project)
+	const std::string                          &project,
+	std::map < int, std::map<int, int> >       &revisionsPerMonth)
 {
-	repo::core::model::RepoBSON criteria;
-	repo::core::model::RevisionNode bson = handler->findOneByCriteria(dbName, project + ".history", criteria, REPO_NODE_REVISION_LABEL_TIMESTAMP);
-	return bson.getTimestampInt64();	
+	repo::core::model::RepoBSON criteria = BSON(REPO_NODE_REVISION_LABEL_INCOMPLETE << BSON("$exists" << false));
+	auto bsons = handler->findAllByCriteria(dbName, project + ".history", criteria, REPO_NODE_REVISION_LABEL_TIMESTAMP);
+	int64_t firstRevTS = -1;
+
+	for (const auto &bson : bsons)
+	{
+		repo::core::model::RevisionNode revNode(bson);
+		auto revTS = revNode.getTimestampInt64();
+
+
+		if (revTS != -1)
+		{
+			if (firstRevTS == -1)
+				firstRevTS = revTS;
+
+			int year, month;
+			getYearMonthFromTimeStamp(revTS, year, month);
+			if (revisionsPerMonth.find(year) == revisionsPerMonth.end())
+				revisionsPerMonth[year] = std::map<int, int>();
+			if (revisionsPerMonth[year].find(month) == revisionsPerMonth[year].end())
+				revisionsPerMonth[year][month] = 0;
+
+			++revisionsPerMonth[year][month];
+		}
+		
+		
+
+
+	}
+
+	return firstRevTS;
 }
 
 static void getProjectsStatistics(
@@ -49,9 +78,9 @@ static void getProjectsStatistics(
 	)
 {
 	auto databases = controller->getDatabases(token);
-	repoInfo << "#databases: " << databases.size();
 	auto projects = controller->getDatabasesWithProjects(token, databases);
 	std::map < int, std::map<int, int> > newProjectsPerMonth;
+	std::map < int, std::map<int, int> > newRevisionsPerMonth;
 	int totalNProjects = 0;
 	for (const auto &dbEntry : projects)
 	{
@@ -60,7 +89,7 @@ static void getProjectsStatistics(
 		for (const auto project : dbEntry.second)
 		{
 			totalNProjects++;
-			auto time  = getTimestampOfFirstRevision(handler, dbName, project);
+			auto time  = getTimestampOfFirstRevision(handler, dbName, project, newRevisionsPerMonth);
 			if (time != -1)
 			{
 				int year = 0, month = 0;
@@ -75,6 +104,8 @@ static void getProjectsStatistics(
 		}		
 	}
 
+
+	repoInfo << "======== NEW PROJECTS PER MONTH =========";
 	for (const auto yearEntry : newProjectsPerMonth)
 	{
 		auto year = yearEntry.first;
@@ -84,6 +115,19 @@ static void getProjectsStatistics(
 		}
 	}
 	repoInfo << "Total #Projects: " << totalNProjects;
+
+	int nRevisions = 0;
+	repoInfo << "======== NEW REVISIONS PER MONTH =========";
+	for (const auto yearEntry : newRevisionsPerMonth)
+	{
+		auto year = yearEntry.first;
+		for (const auto monthEntry : yearEntry.second)
+		{
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tProjects: " << monthEntry.second;
+			nRevisions += monthEntry.second;
+		}
+	}
+	repoInfo << "Total #Revisions: " << nRevisions;
 }
 
 static uint64_t getNewUsersWithinDuration(
@@ -139,7 +183,7 @@ static void getNewUsersPerMonth(
 		year = nextYear;
 		month = nextMonth;
 	}
-	repoInfo << "Total Users: " << 
+	repoInfo << "Total Users: " << nUsers;
 }
 
 int main(int argc, char* argv[])
@@ -165,6 +209,6 @@ int main(int argc, char* argv[])
 	getNewUsersPerMonth(handler, false);
 	repoInfo << "======== NEW PAID USERS PER MONTH ==========";
 	getNewUsersPerMonth(handler, true);
-	repoInfo << "======== NEW PROJECTS PER MONTH =========";
+
 	getProjectsStatistics(controller, token, handler);
 }

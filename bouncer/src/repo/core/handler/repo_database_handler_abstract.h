@@ -356,7 +356,9 @@ namespace repo{
 				virtual std::vector<repo::core::model::RepoBSON> findAllByCriteria(
 					const std::string& database,
 					const std::string& collection,
-					const repo::core::model::RepoBSON& criteria) = 0;
+					const repo::core::model::RepoBSON& criteria,
+					const std::string& sortField = "",
+					const bool                        ascending = false) = 0;
 
 				/**
 				* Given a search criteria,  find one documents that passes this query

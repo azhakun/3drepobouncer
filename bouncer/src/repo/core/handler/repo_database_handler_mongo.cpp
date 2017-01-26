@@ -401,7 +401,9 @@ mongo::BSONObj MongoDatabaseHandler::fieldsToReturn(
 std::vector<repo::core::model::RepoBSON> MongoDatabaseHandler::findAllByCriteria(
 	const std::string& database,
 	const std::string& collection,
-	const repo::core::model::RepoBSON& criteria)
+	const repo::core::model::RepoBSON& criteria,
+	const std::string& sortField,
+	const bool       ascending)
 {
 	std::vector<repo::core::model::RepoBSON> data;
 
@@ -412,6 +414,10 @@ std::vector<repo::core::model::RepoBSON> MongoDatabaseHandler::findAllByCriteria
 			uint64_t retrieved = 0;
 			std::auto_ptr<mongo::DBClientCursor> cursor;
 			worker = workerPool->getWorker();
+
+			auto query = mongo::Query(criteria);
+			if (!sortField.empty())
+				query = query.sort(sortField, ascending ? 1 : -1);
 			if (worker)
 			{
 				do
@@ -419,7 +425,7 @@ std::vector<repo::core::model::RepoBSON> MongoDatabaseHandler::findAllByCriteria
 					repoTrace << " Querying " << database << "." << collection << " with : " << criteria.toString();
 					cursor = worker->query(
 						database + "." + collection,
-						criteria,
+						query,
 						0,
 						retrieved);
 

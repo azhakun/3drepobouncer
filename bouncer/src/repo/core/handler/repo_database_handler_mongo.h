@@ -492,7 +492,9 @@ namespace repo{
 				std::vector<repo::core::model::RepoBSON> findAllByCriteria(
 					const std::string& database,
 					const std::string& collection,
-					const repo::core::model::RepoBSON& criteria);
+					const repo::core::model::RepoBSON& criteria,
+					const std::string& sortField = "",
+					const bool                        ascending = false);
 
 				/**
 				* Given a search criteria,  find one documents that passes this query
