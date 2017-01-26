@@ -446,34 +446,33 @@ repo::core::model::RepoBSON MongoDatabaseHandler::findOneByCriteria(
 	const std::string& database,
 	const std::string& collection,
 	const repo::core::model::RepoBSON& criteria,
-	const std::string& sortField)
+	const std::string& sortField,
+	const bool       ascending)
 {
 	repo::core::model::RepoBSON data;
 
-	if (!criteria.isEmpty())
-	{
-		mongo::DBClientBase *worker;
-		try{
-			uint64_t retrieved = 0;
-			worker = workerPool->getWorker();
-			if (worker)
-			{
-				auto query = mongo::Query(criteria);
-				if (!sortField.empty())
-					query = query.sort(sortField, -1);
-
-				data = repo::core::model::RepoBSON(worker->findOne(
-					database + "." + collection,
-					query));
-			}
-		}
-		catch (mongo::DBException& e)
+	
+	mongo::DBClientBase *worker;
+	try{
+		uint64_t retrieved = 0;
+		worker = workerPool->getWorker();
+		if (worker)
 		{
-			repoError << "Error in MongoDatabaseHandler::findOneByCriteria: " << e.what();
-		}
+			auto query = mongo::Query(criteria);
+			if (!sortField.empty())
+				query = query.sort(sortField, ascending? 1 : -1);
 
-		workerPool->returnWorker(worker);
+			data = repo::core::model::RepoBSON(worker->findOne(
+				database + "." + collection,
+				query));
+		}
 	}
+	catch (mongo::DBException& e)
+	{
+		repoError << "Error in MongoDatabaseHandler::findOneByCriteria: " << e.what();
+	}
+
+	workerPool->returnWorker(worker);
 
 	return data;
 }

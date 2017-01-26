@@ -500,13 +500,15 @@ namespace repo{
 				* @param collection name of collection
 				* @param criteria search criteria in a bson object
 				* @param sortField field to sort
+				* @param ascending sort ascending (default: descending)
 				* @return a RepoBSON objects satisfy the given criteria
 				*/
 				repo::core::model::RepoBSON findOneByCriteria(
 					const std::string& database,
 					const std::string& collection,
 					const repo::core::model::RepoBSON& criteria,
-					const std::string& sortField = ""
+					const std::string& sortField = "",
+					const bool                        ascending = false
 					);
 
 				/**

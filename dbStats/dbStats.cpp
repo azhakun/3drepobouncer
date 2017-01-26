@@ -19,14 +19,81 @@ static int64_t getTimeStamp(
 	return mDate.asInt64();
 }
 
+static void getYearMonthFromTimeStamp(
+	const int64_t &timestamp,
+	int &year,
+	int &month)
+{
+	
+	auto ts = timestamp / 1000;
+	auto dateTime = gmtime(&ts);
+	year = dateTime->tm_year + 1900;
+	month = dateTime->tm_mon + 1;
+
+}
+
+static int64_t getTimestampOfFirstRevision(
+	repo::core::handler::MongoDatabaseHandler *handler,
+	const std::string                          &dbName,
+	const std::string                          &project)
+{
+	repo::core::model::RepoBSON criteria;
+	repo::core::model::RevisionNode bson = handler->findOneByCriteria(dbName, project + ".history", criteria, REPO_NODE_REVISION_LABEL_TIMESTAMP);
+	return bson.getTimestampInt64();	
+}
+
+static void getNewProjectsStatistics(
+	repo::RepoController                      *controller,
+	const repo::RepoController::RepoToken     *token,
+	repo::core::handler::MongoDatabaseHandler *handler
+	)
+{
+	auto databases = controller->getDatabases(token);
+	repoInfo << "#databases: " << databases.size();
+	auto projects = controller->getDatabasesWithProjects(token, databases);
+	std::map < int, std::map<int, int> > newProjectsPerMonth;
+	int totalNProjects = 0;
+	for (const auto &dbEntry : projects)
+	{
+		
+		auto dbName = dbEntry.first;
+
+		for (const auto project : dbEntry.second)
+		{
+			totalNProjects++;
+			auto time  = getTimestampOfFirstRevision(handler, dbName, project);
+			if (time != -1)
+			{
+				int year = 0, month = 0;
+				getYearMonthFromTimeStamp(time, year, month);
+				if (newProjectsPerMonth.find(year) == newProjectsPerMonth.end())
+					newProjectsPerMonth[year] = std::map<int, int>();
+				if (newProjectsPerMonth[year].find(month) == newProjectsPerMonth[year].end())
+					newProjectsPerMonth[year][month] = 0;
+
+				++newProjectsPerMonth[year][month];
+			}						
+		}		
+	}
+
+	for (const auto yearEntry : newProjectsPerMonth)
+	{
+		auto year = yearEntry.first;
+		for (const auto monthEntry : yearEntry.second)
+		{
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \Projects: " << monthEntry.second;
+		}
+	}
+	repoInfo << "Total #Projects: " << totalNProjects;
+}
+
 static uint64_t getNewUsersWithinDuration(
 	repo::core::handler::MongoDatabaseHandler *handler,
 	const bool	                               paidUsers,
 	const int64_t                             &from,
 	const int64_t                             &to )
 {
-	//db.getCollection('system.users').find({ "customData.subscriptions": {$elemMatch: {plan: "BASIC", createdAt : {$lt: ISODate("2016-12-10T00:00:00.000Z"), $gt : ISODate("2016-12-01T00:00:00.000Z")}}} })
-
+	
 	repo::core::model::RepoBSONBuilder timeRangeBuilder;
 	timeRangeBuilder.appendTime("$lt", to);
 	timeRangeBuilder.appendTime("$gt", from);
@@ -95,4 +162,6 @@ int main(int argc, char* argv[])
 	getNewUsersPerMonth(handler, false);
 	repoInfo << "======== NEW PAID USERS PER MONTH ==========";
 	getNewUsersPerMonth(handler, true);
+	repoInfo << "======== NEW PROJECTS PER MONTH =========";
+	getNewProjectsStatistics(controller, token, handler);
 }

@@ -370,7 +370,8 @@ namespace repo{
 					const std::string& database,
 					const std::string& collection,
 					const repo::core::model::RepoBSON& criteria,
-					const std::string& sortField = "") = 0;
+					const std::string& sortField = "",
+					const bool                        ascending = false) = 0;
 
 				/**
 				* Given a list of unique IDs, find all the documents associated to them
