@@ -136,6 +136,7 @@ static void getIssuesStatistics(
 
 
 static void getProjectsStatistics(
+	const std::list<std::string>              &databases,
 	repo::RepoController                      *controller,
 	const repo::RepoController::RepoToken     *token,
 	repo::core::handler::MongoDatabaseHandler *handler,
@@ -143,8 +144,7 @@ static void getProjectsStatistics(
 	std::ofstream							  &oFile
 	)
 {
-	repoInfo << "Getting database...";
-	auto databases = controller->getDatabases(token);
+
 	repoInfo << "Getting database projects...";
 	auto projects = controller->getDatabasesWithProjects(token, databases);
 	repoInfo << "done";
@@ -248,9 +248,57 @@ static void getProjectsStatistics(
 
 }
 
+static void getNewPaidUsersPerMonth(
+	repo::core::handler::MongoDatabaseHandler *handler,
+	const std::list<std::string>              &databases,
+	std::ofstream							  &oFile)
+{
+	std::map<int, std::map<int, int>> paidUsers;
+	for (const auto &db : databases)
+	{
+		auto invoices = handler->getAllFromCollectionTailable(db, "invoices");
+		for (const auto invoice : invoices)
+		{
+			std::string state = invoice.getStringField("state");
+			if (invoice.hasField("periodStart") && (state == "complete"))
+			{
+				auto start = invoice.getTimeStampField("periodStart");
+				if (start != -1)
+				{
+					auto nLicense = invoice.getObjectField("items").nFields();
+					int year, month;
+					getYearMonthFromTimeStamp(start, year, month);
+					if (paidUsers.find(year) == paidUsers.end())
+						paidUsers[year] = std::map<int, int>();
+					if (paidUsers[year].find(month) == paidUsers[year].end())
+						paidUsers[year][month] = 0;
+					repoInfo << " nLicenses : " << nLicense << ": " << db;
+					paidUsers[year][month] += nLicense;
+
+				}			
+			}
+		}
+	}
+
+	repoInfo << "======== PAID USERS PER MONTH =========";
+	int64_t nUsers = 0;
+	oFile << "Paid users per month" << std::endl;
+	oFile << "Year,Month,#Users" << std::endl;
+	for (const auto yearEntry : paidUsers)
+	{
+		auto year = yearEntry.first;
+		for (const auto monthEntry : yearEntry.second)
+		{
+			nUsers += monthEntry.second;
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \t#Users: " << monthEntry.second;
+
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << "," << nUsers << std::endl;
+		}
+	}
+}
+
 static uint64_t getNewUsersWithinDuration(
 	repo::core::handler::MongoDatabaseHandler *handler,
-	const bool	                               paidUsers,
 	const int64_t                             &from,
 	const int64_t                             &to ,
 	std::unordered_map<std::string, int64_t>  &userStartDate)
@@ -261,46 +309,37 @@ static uint64_t getNewUsersWithinDuration(
 	timeRangeBuilder.appendTime("$gt", from);
 
 	repo::core::model::RepoBSON planInfo;
-	if(paidUsers)
-		planInfo = BSON("plan" << "THE-100-QUID-PLAN" << "inCurrentAgreement" << true << "createdAt" << timeRangeBuilder.obj());
-	else
-		planInfo = BSON("plan" << "BASIC" << "createdAt" << timeRangeBuilder.obj());
+	planInfo = BSON("plan" << "BASIC" << "createdAt" << timeRangeBuilder.obj());
 
 	auto subscriptionCriteria = BSON("$elemMatch" << planInfo);
 	repo::core::model::RepoBSON criteria = BSON("customData.billing.subscriptions" << subscriptionCriteria);
 	auto users =  handler->findAllByCriteria(REPO_ADMIN, REPO_SYSTEM_USERS, criteria);
-	if (!paidUsers)
+	for (const auto userBson : users)
 	{
-		for (const auto userBson : users)
-		{
-			repo::core::model::RepoUser user(userBson);
+		repo::core::model::RepoUser user(userBson);
 
-			auto subs = user.getSubscriptionInfo();
-			for (const auto sub : subs)
+		auto subs = user.getSubscriptionInfo();
+		for (const auto sub : subs)
+		{
+			if (sub.planName == "BASIC")
 			{
-				if (sub.planName == "BASIC")
-				{
-					userStartDate[user.getUserName()] = sub.createdAt;
-					break;
-				}
+				userStartDate[user.getUserName()] = sub.createdAt;
+				break;
 			}
 		}
 	}
+	
 
 	return users.size();
 }
 
 static void getNewUsersPerMonth(
 	repo::core::handler::MongoDatabaseHandler *handler,
-	const bool	                               paidUsers,
 	std::unordered_map<std::string, int64_t>  &userStartDate,
 	std::ofstream							  &oFile)
 {
 	int month = 8;
 	int year = 2016;
-
-	if (paidUsers)
-		month = 10;
 
 	time_t rawTime;
 	time(&rawTime);
@@ -309,11 +348,7 @@ static void getNewUsersPerMonth(
 	int maxMonth = currTime->tm_mon + 1;
 
 	int nUsers = 0;
-	if (paidUsers)
-		oFile << "Number of new paid users per month" << std::endl; 
-	else
-		oFile << "Number of new users per month" << std::endl;
-
+	oFile << "Number of new users per month" << std::endl;
 	oFile << "Year,Month,Users,Total" << std::endl;
 	while (maxYear > year || (maxYear == year && maxMonth >= month))
 	{
@@ -322,7 +357,7 @@ static void getNewUsersPerMonth(
 
 		auto from = getTimeStamp(year, month);
 		auto to = getTimeStamp(nextYear, nextMonth);
-		auto users = getNewUsersWithinDuration(handler, paidUsers, from, to, userStartDate);
+		auto users = getNewUsersWithinDuration(handler, from, to, userStartDate);
 		nUsers += users;
 		repoInfo << "Year: " << year << "\tMonth: " << month << " \tUsers: " <<  users;
 		oFile << year << "," << month << "," << users << "," << nUsers << std::endl;
@@ -359,11 +394,12 @@ int main(int argc, char* argv[])
 		auto handler = repo::core::handler::MongoDatabaseHandler::getHandler("");
 		std::unordered_map<std::string, int64_t>  userStartDate;
 		repoInfo << "======== NEW USERS PER MONTH ==========";
-		getNewUsersPerMonth(handler, false, userStartDate, oFile);
-		repoInfo << "======== NEW PAID USERS PER MONTH ==========";
-		getNewUsersPerMonth(handler, true, userStartDate, oFile);
+		getNewUsersPerMonth(handler, userStartDate, oFile);
+		auto databases = controller->getDatabases(token);
+		getNewPaidUsersPerMonth(handler, databases, oFile);
+	
 
-		getProjectsStatistics(controller, token, handler, userStartDate, oFile);
+		getProjectsStatistics(databases, controller, token, handler, userStartDate, oFile);
 	}
 	else
 	{
