@@ -406,45 +406,42 @@ std::vector<repo::core::model::RepoBSON> MongoDatabaseHandler::findAllByCriteria
 	const bool       ascending)
 {
 	std::vector<repo::core::model::RepoBSON> data;
+	mongo::DBClientBase *worker;
+	try{
+		uint64_t retrieved = 0;
+		std::auto_ptr<mongo::DBClientCursor> cursor;
+		worker = workerPool->getWorker();
 
-	if (!criteria.isEmpty())
-	{
-		mongo::DBClientBase *worker;
-		try{
-			uint64_t retrieved = 0;
-			std::auto_ptr<mongo::DBClientCursor> cursor;
-			worker = workerPool->getWorker();
-
-			auto query = mongo::Query(criteria);
-			if (!sortField.empty())
-				query = query.sort(sortField, ascending ? 1 : -1);
-			if (worker)
-			{
-				do
-				{
-					repoTrace << " Querying " << database << "." << collection << " with : " << criteria.toString();
-					cursor = worker->query(
-						database + "." + collection,
-						query,
-						0,
-						retrieved);
-
-					for (; cursor.get() && cursor->more(); ++retrieved)
-					{
-						data.push_back(createRepoBSON(worker, database, collection, cursor->nextSafe().copy()));
-					}
-				} while (cursor.get() && cursor->more());
-			}
-			else
-				repoError << "Failed to count number of items in collection: cannot obtain a database worker from the pool";
-		}
-		catch (mongo::DBException& e)
+		auto query = mongo::Query(criteria);
+		if (!sortField.empty())
+			query = query.sort(sortField, ascending ? 1 : -1);
+		if (worker)
 		{
-			repoError << "Error in MongoDatabaseHandler::findAllByCriteria: " << e.what();
-		}
+			do
+			{
+				repoTrace << " Querying " << database << "." << collection << " with : " << criteria.toString();
+				cursor = worker->query(
+					database + "." + collection,
+					query,
+					0,
+					retrieved);
 
-		workerPool->returnWorker(worker);
+				for (; cursor.get() && cursor->more(); ++retrieved)
+				{
+					data.push_back(createRepoBSON(worker, database, collection, cursor->nextSafe().copy()));
+				}
+			} while (cursor.get() && cursor->more());
+		}
+		else
+			repoError << "Failed to count number of items in collection: cannot obtain a database worker from the pool";
 	}
+	catch (mongo::DBException& e)
+	{
+		repoError << "Error in MongoDatabaseHandler::findAllByCriteria: " << e.what();
+	}
+
+	workerPool->returnWorker(worker);
+
 	return data;
 }
 

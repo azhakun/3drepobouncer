@@ -32,11 +32,35 @@ static void getYearMonthFromTimeStamp(
 
 }
 
-static int64_t getTimestampOfFirstRevision(
+static int64_t getFileSizeTotal(
+	const std::vector<std::string>             &files,
 	repo::core::handler::MongoDatabaseHandler *handler,
 	const std::string                          &dbName,
-	const std::string                          &project,
-	std::map < int, std::map<int, int> >       &revisionsPerMonth)
+	const std::string                          &project
+	)
+{
+	int64_t fileSize = 0;
+
+	repo::core::model::RepoBSONBuilder builder;
+	builder.appendArray("$in", files);
+	auto criteria = BSON("filename" << builder.obj());
+	
+	auto filesInfo = handler->findAllByCriteria(dbName, project + ".history.files", criteria);
+
+	for (const auto fileInfo : filesInfo)
+	{
+		fileSize += fileInfo.getIntField("length") / (1024*1024*1024);
+	}
+
+	return fileSize;
+}
+
+static int64_t getTimestampOfFirstRevision(
+repo::core::handler::MongoDatabaseHandler *handler,
+const std::string                          &dbName,
+const std::string                          &project,
+std::map < int, std::map<int, int> >       &revisionsPerMonth,
+std::map < int, std::map<int, int> >       &fileSizesPerMonth)
 {
 	repo::core::model::RepoBSON criteria = BSON(REPO_NODE_REVISION_LABEL_INCOMPLETE << BSON("$exists" << false));
 	auto bsons = handler->findAllByCriteria(dbName, project + ".history", criteria, REPO_NODE_REVISION_LABEL_TIMESTAMP);
@@ -46,7 +70,6 @@ static int64_t getTimestampOfFirstRevision(
 	{
 		repo::core::model::RevisionNode revNode(bson);
 		auto revTS = revNode.getTimestampInt64();
-
 
 		if (revTS != -1)
 		{
@@ -61,35 +84,86 @@ static int64_t getTimestampOfFirstRevision(
 				revisionsPerMonth[year][month] = 0;
 
 			++revisionsPerMonth[year][month];
+
+			auto orgFiles = revNode.getOrgFiles();
+
+			if (fileSizesPerMonth.find(year) == fileSizesPerMonth.end())
+				fileSizesPerMonth[year] = std::map<int, int>();
+			if (fileSizesPerMonth[year].find(month) == fileSizesPerMonth[year].end())
+				fileSizesPerMonth[year][month] = 0;
+
+			fileSizesPerMonth[year][month] += getFileSizeTotal(orgFiles, handler, dbName, project);
+
 		}
-		
-		
 
 
 	}
-
 	return firstRevTS;
 }
+
+static void getIssuesStatistics(
+	repo::core::handler::MongoDatabaseHandler *handler,
+	const std::string                          &dbName,
+	const std::string                          &project,
+	std::map < int, std::map<int, int> >       &issuesPerMonth,
+	const int64_t                              &dbStartDate)
+{
+
+	repo::core::model::RepoBSON criteria;
+	auto bsons = handler->findAllByCriteria(dbName, project + ".issues", criteria);
+
+	for (const auto &bson : bsons)
+	{
+		int64_t createdTS = -1;
+		if(bson.hasField("created"))
+			createdTS = bson.getField("created").Double();
+
+		if (createdTS != -1)
+		{
+			if (dbStartDate != -1 && createdTS < dbStartDate)
+				createdTS = dbStartDate;
+			int year, month;
+			getYearMonthFromTimeStamp(createdTS, year, month);
+			if (issuesPerMonth.find(year) == issuesPerMonth.end())
+				issuesPerMonth[year] = std::map<int, int>();
+			if (issuesPerMonth[year].find(month) == issuesPerMonth[year].end())
+				issuesPerMonth[year][month] = 0;
+
+			++issuesPerMonth[year][month];
+		}
+	}
+}
+
 
 static void getProjectsStatistics(
 	repo::RepoController                      *controller,
 	const repo::RepoController::RepoToken     *token,
-	repo::core::handler::MongoDatabaseHandler *handler
+	repo::core::handler::MongoDatabaseHandler *handler,
+	std::unordered_map<std::string, int64_t>  &userStartDate
 	)
 {
+	repoInfo << "Getting database...";
 	auto databases = controller->getDatabases(token);
+	repoInfo << "Getting database projects...";
 	auto projects = controller->getDatabasesWithProjects(token, databases);
+	repoInfo << "done";
 	std::map < int, std::map<int, int> > newProjectsPerMonth;
 	std::map < int, std::map<int, int> > newRevisionsPerMonth;
+	std::map < int, std::map<int, int> > newIssuesPerMonth;
+	std::map < int, std::map<int, int> > fileSizesPerMonth;
 	int totalNProjects = 0;
+	int count = 0;
 	for (const auto &dbEntry : projects)
 	{
 		
 		auto dbName = dbEntry.first;
+		int64_t dbStartDate = -1;
+		if (userStartDate.find(dbName) != userStartDate.end())
+			dbStartDate = userStartDate[dbName];
 		for (const auto project : dbEntry.second)
 		{
 			totalNProjects++;
-			auto time  = getTimestampOfFirstRevision(handler, dbName, project, newRevisionsPerMonth);
+			auto time = getTimestampOfFirstRevision(handler, dbName, project, newRevisionsPerMonth, fileSizesPerMonth);
 			if (time != -1)
 			{
 				int year = 0, month = 0;
@@ -101,6 +175,9 @@ static void getProjectsStatistics(
 
 				++newProjectsPerMonth[year][month];
 			}						
+
+
+			getIssuesStatistics(handler, dbName, project, newIssuesPerMonth, dbStartDate);
 		}		
 	}
 
@@ -123,18 +200,45 @@ static void getProjectsStatistics(
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
-			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tProjects: " << monthEntry.second;
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \Revisions: " << monthEntry.second;
 			nRevisions += monthEntry.second;
 		}
 	}
 	repoInfo << "Total #Revisions: " << nRevisions;
+
+	int nIssues = 0;
+	repoInfo << "======== NEW ISSUES PER MONTH =========";
+	for (const auto yearEntry : newIssuesPerMonth)
+	{
+		auto year = yearEntry.first;
+		for (const auto monthEntry : yearEntry.second)
+		{
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tIssues: " << monthEntry.second;
+			nIssues += monthEntry.second;
+		}
+	}
+	repoInfo << "Total #Issues: " << nIssues;
+
+	repoInfo << "======== NEW FILES SIZE PER MONTH =========";
+	int64_t fSize = 0;
+	for (const auto yearEntry : fileSizesPerMonth)
+	{
+		auto year = yearEntry.first;
+		for (const auto monthEntry : yearEntry.second)
+		{
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tSize(GiB): " << monthEntry.second;
+			fSize += monthEntry.second;
+		}
+	}
+	repoInfo << "Total Size: " << fSize << "GiB";
 }
 
 static uint64_t getNewUsersWithinDuration(
 	repo::core::handler::MongoDatabaseHandler *handler,
 	const bool	                               paidUsers,
 	const int64_t                             &from,
-	const int64_t                             &to )
+	const int64_t                             &to ,
+	std::unordered_map<std::string, int64_t>  &userStartDate)
 {
 	
 	repo::core::model::RepoBSONBuilder timeRangeBuilder;
@@ -149,12 +253,32 @@ static uint64_t getNewUsersWithinDuration(
 
 	auto subscriptionCriteria = BSON("$elemMatch" << planInfo);
 	repo::core::model::RepoBSON criteria = BSON("customData.billing.subscriptions" << subscriptionCriteria);
-	return handler->findAllByCriteria(REPO_ADMIN, REPO_SYSTEM_USERS, criteria).size();
+	auto users =  handler->findAllByCriteria(REPO_ADMIN, REPO_SYSTEM_USERS, criteria);
+	if (!paidUsers)
+	{
+		for (const auto userBson : users)
+		{
+			repo::core::model::RepoUser user(userBson);
+
+			auto subs = user.getSubscriptionInfo();
+			for (const auto sub : subs)
+			{
+				if (sub.planName == "BASIC")
+				{
+					userStartDate[user.getUserName()] = sub.createdAt;
+					break;
+				}
+			}
+		}
+	}
+
+	return users.size();
 }
 
 static void getNewUsersPerMonth(
 	repo::core::handler::MongoDatabaseHandler *handler,
-	const bool	                               paidUsers)
+	const bool	                               paidUsers,
+	std::unordered_map<std::string, int64_t>  &userStartDate)
 {
 	int month = 8;
 	int year = 2016;
@@ -176,7 +300,7 @@ static void getNewUsersPerMonth(
 
 		auto from = getTimeStamp(year, month);
 		auto to = getTimeStamp(nextYear, nextMonth);
-		auto users = getNewUsersWithinDuration(handler, paidUsers, from, to);
+		auto users = getNewUsersWithinDuration(handler, paidUsers, from, to, userStartDate);
 		nUsers += users;
 		repoInfo << "Year: " << year << "\tMonth: " << month << " \tUsers: " <<  users;
 	
@@ -194,7 +318,7 @@ int main(int argc, char* argv[])
 
 	if (argc < 5)	
 	{
-		std::cout << "Usage: " << argv[0] << " <dbAddress> <port> <username> <password" << std::endl;
+		std::cout << "Usage: " << argv[0] << " <dbAddress> <port> <username> <password>" << std::endl;
 		exit(0);
 	}
 	std::string dbAdd = argv[1];
@@ -204,11 +328,11 @@ int main(int argc, char* argv[])
 	repo::RepoController::RepoToken* token = controller->authenticateToAdminDatabaseMongo(errMsg, dbAdd, port, username, password);
 
 	auto handler = repo::core::handler::MongoDatabaseHandler::getHandler("");
-
+	std::unordered_map<std::string, int64_t>  userStartDate;
 	repoInfo << "======== NEW USERS PER MONTH ==========";
-	getNewUsersPerMonth(handler, false);
+	getNewUsersPerMonth(handler, false, userStartDate);
 	repoInfo << "======== NEW PAID USERS PER MONTH ==========";
-	getNewUsersPerMonth(handler, true);
+	getNewUsersPerMonth(handler, true, userStartDate);
 
-	getProjectsStatistics(controller, token, handler);
+	getProjectsStatistics(controller, token, handler, userStartDate);
 }
