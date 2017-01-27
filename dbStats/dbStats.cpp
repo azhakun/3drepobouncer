@@ -49,7 +49,7 @@ static int64_t getFileSizeTotal(
 
 	for (const auto fileInfo : filesInfo)
 	{
-		fileSize += fileInfo.getIntField("length") / (1024*1024*1024);
+		fileSize += fileInfo.getIntField("length") / (1024*1024);
 	}
 
 	return fileSize;
@@ -139,7 +139,8 @@ static void getProjectsStatistics(
 	repo::RepoController                      *controller,
 	const repo::RepoController::RepoToken     *token,
 	repo::core::handler::MongoDatabaseHandler *handler,
-	std::unordered_map<std::string, int64_t>  &userStartDate
+	std::unordered_map<std::string, int64_t>  &userStartDate,
+	std::ofstream							  &oFile
 	)
 {
 	repoInfo << "Getting database...";
@@ -183,54 +184,70 @@ static void getProjectsStatistics(
 
 
 	repoInfo << "======== NEW PROJECTS PER MONTH =========";
+	oFile << "New Projects per month" << std::endl;
+	oFile << "Year,Month,#New Projects" << std::endl;
 	for (const auto yearEntry : newProjectsPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
 			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tProjects: " << monthEntry.second;
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
 		}
 	}
+	oFile << std::endl <<"Total #Projects:,"<<totalNProjects << std::endl;
 	repoInfo << "Total #Projects: " << totalNProjects;
 
 	int nRevisions = 0;
 	repoInfo << "======== NEW REVISIONS PER MONTH =========";
+	oFile << "New revisions per month" << std::endl;
+	oFile << "Year,Month,#New Projects" << std::endl;
 	for (const auto yearEntry : newRevisionsPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
-			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \Revisions: " << monthEntry.second;
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tRevisions: " << monthEntry.second;
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
 			nRevisions += monthEntry.second;
 		}
 	}
+	oFile << std::endl << "Total #Revisions:," << nRevisions << std::endl;
 	repoInfo << "Total #Revisions: " << nRevisions;
 
 	int nIssues = 0;
 	repoInfo << "======== NEW ISSUES PER MONTH =========";
+	oFile << "New Issues per month" << std::endl;
+	oFile << "Year,Month,#New Issues" << std::endl;
 	for (const auto yearEntry : newIssuesPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
 			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tIssues: " << monthEntry.second;
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
 			nIssues += monthEntry.second;
 		}
 	}
+	oFile << std::endl << "Total #Issues:," << nIssues << std::endl;
 	repoInfo << "Total #Issues: " << nIssues;
 
 	repoInfo << "======== NEW FILES SIZE PER MONTH =========";
 	int64_t fSize = 0;
+	oFile << "New file size per month" << std::endl;
+	oFile << "Year,Month,File Size(MiB)" << std::endl;
 	for (const auto yearEntry : fileSizesPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
-			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tSize(GiB): " << monthEntry.second;
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tSize(MiB): " << monthEntry.second;
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
 			fSize += monthEntry.second;
 		}
 	}
-	repoInfo << "Total Size: " << fSize << "GiB";
+	oFile << std::endl << "Total Size:," << fSize << "," << "MiB" << std::endl;
+	repoInfo << "Total Size: " << fSize << "MiB";
 }
 
 static uint64_t getNewUsersWithinDuration(
@@ -278,7 +295,8 @@ static uint64_t getNewUsersWithinDuration(
 static void getNewUsersPerMonth(
 	repo::core::handler::MongoDatabaseHandler *handler,
 	const bool	                               paidUsers,
-	std::unordered_map<std::string, int64_t>  &userStartDate)
+	std::unordered_map<std::string, int64_t>  &userStartDate,
+	std::ofstream							  &oFile)
 {
 	int month = 8;
 	int year = 2016;
@@ -293,6 +311,12 @@ static void getNewUsersPerMonth(
 	int maxMonth = currTime->tm_mon + 1;
 
 	int nUsers = 0;
+	if (paidUsers)
+		oFile << "Number of new paid users per month" << std::endl; 
+	else
+		oFile << "Number of new users per month" << std::endl;
+
+	oFile << "Year,Month,Users" << std::endl;
 	while (maxYear > year || (maxYear == year && maxMonth >= month))
 	{
 		int nextMonth = month == 12 ? 1 : month + 1;
@@ -303,10 +327,12 @@ static void getNewUsersPerMonth(
 		auto users = getNewUsersWithinDuration(handler, paidUsers, from, to, userStartDate);
 		nUsers += users;
 		repoInfo << "Year: " << year << "\tMonth: " << month << " \tUsers: " <<  users;
+		oFile << year << "," << month << "," << users << std::endl;
 	
 		year = nextYear;
 		month = nextMonth;
 	}
+	oFile << std::endl << "Total Users:," << nUsers << std::endl;
 	repoInfo << "Total Users: " << nUsers;
 }
 
@@ -316,23 +342,36 @@ int main(int argc, char* argv[])
 	controller->setLoggingLevel(repo::lib::RepoLog::RepoLogLevel::INFO);
 	std::string errMsg;
 
-	if (argc < 5)	
+	if (argc < 6)	
 	{
-		std::cout << "Usage: " << argv[0] << " <dbAddress> <port> <username> <password>" << std::endl;
+		std::cout << "Usage: " << argv[0] << " <dbAddress> <port> <username> <password> <output csv file>" << std::endl;
 		exit(0);
 	}
 	std::string dbAdd = argv[1];
 	int port = std::stoi(argv[2]);
 	std::string username = argv[3];
 	std::string password = argv[4];
+	std::string outputFile = argv[5];
+
 	repo::RepoController::RepoToken* token = controller->authenticateToAdminDatabaseMongo(errMsg, dbAdd, port, username, password);
 
-	auto handler = repo::core::handler::MongoDatabaseHandler::getHandler("");
-	std::unordered_map<std::string, int64_t>  userStartDate;
-	repoInfo << "======== NEW USERS PER MONTH ==========";
-	getNewUsersPerMonth(handler, false, userStartDate);
-	repoInfo << "======== NEW PAID USERS PER MONTH ==========";
-	getNewUsersPerMonth(handler, true, userStartDate);
+	std::ofstream oFile;
+	oFile.open(outputFile);
+	if (oFile.is_open())
+	{
+		auto handler = repo::core::handler::MongoDatabaseHandler::getHandler("");
+		std::unordered_map<std::string, int64_t>  userStartDate;
+		repoInfo << "======== NEW USERS PER MONTH ==========";
+		getNewUsersPerMonth(handler, false, userStartDate, oFile);
+		repoInfo << "======== NEW PAID USERS PER MONTH ==========";
+		getNewUsersPerMonth(handler, true, userStartDate, oFile);
 
-	getProjectsStatistics(controller, token, handler, userStartDate);
+		getProjectsStatistics(controller, token, handler, userStartDate, oFile);
+	}
+	else
+	{
+		repoError << "Failed to open output file:  " << outputFile;
+	}
+	oFile.close();
+	
 }
