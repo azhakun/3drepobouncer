@@ -152,7 +152,6 @@ static void getProjectsStatistics(
 	std::map < int, std::map<int, int> > newRevisionsPerMonth;
 	std::map < int, std::map<int, int> > newIssuesPerMonth;
 	std::map < int, std::map<int, int> > fileSizesPerMonth;
-	int totalNProjects = 0;
 	int count = 0;
 	for (const auto &dbEntry : projects)
 	{
@@ -163,7 +162,6 @@ static void getProjectsStatistics(
 			dbStartDate = userStartDate[dbName];
 		for (const auto project : dbEntry.second)
 		{
-			totalNProjects++;
 			auto time = getTimestampOfFirstRevision(handler, dbName, project, newRevisionsPerMonth, fileSizesPerMonth);
 			if (time != -1)
 			{
@@ -185,69 +183,69 @@ static void getProjectsStatistics(
 
 	repoInfo << "======== NEW PROJECTS PER MONTH =========";
 	oFile << "New Projects per month" << std::endl;
-	oFile << "Year,Month,#New Projects" << std::endl;
+	oFile << "Year,Month,#New Projects,Total" << std::endl;
+	int nProjects = 0;
 	for (const auto yearEntry : newProjectsPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
 			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tProjects: " << monthEntry.second;
-			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
+			nProjects += monthEntry.second;
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << "," << nProjects << std::endl;
 		}
 	}
-	oFile << std::endl <<"Total #Projects:,"<<totalNProjects << std::endl;
-	repoInfo << "Total #Projects: " << totalNProjects;
+
 
 	int nRevisions = 0;
 	repoInfo << "======== NEW REVISIONS PER MONTH =========";
 	oFile << "New revisions per month" << std::endl;
-	oFile << "Year,Month,#New Projects" << std::endl;
+	oFile << "Year,Month,#New Revisions,Total" << std::endl;
 	for (const auto yearEntry : newRevisionsPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
 			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tRevisions: " << monthEntry.second;
-			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
 			nRevisions += monthEntry.second;
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << "," << nRevisions <<std::endl;
+
 		}
 	}
-	oFile << std::endl << "Total #Revisions:," << nRevisions << std::endl;
-	repoInfo << "Total #Revisions: " << nRevisions;
+
 
 	int nIssues = 0;
 	repoInfo << "======== NEW ISSUES PER MONTH =========";
 	oFile << "New Issues per month" << std::endl;
-	oFile << "Year,Month,#New Issues" << std::endl;
+	oFile << "Year,Month,#New Issues,Total" << std::endl;
 	for (const auto yearEntry : newIssuesPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
 			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tIssues: " << monthEntry.second;
-			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
 			nIssues += monthEntry.second;
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second <<"," << nIssues<< std::endl;
+		
 		}
 	}
-	oFile << std::endl << "Total #Issues:," << nIssues << std::endl;
-	repoInfo << "Total #Issues: " << nIssues;
 
 	repoInfo << "======== NEW FILES SIZE PER MONTH =========";
 	int64_t fSize = 0;
 	oFile << "New file size per month" << std::endl;
-	oFile << "Year,Month,File Size(MiB)" << std::endl;
+	oFile << "Year,Month,File Size(MiB),Total" << std::endl;
 	for (const auto yearEntry : fileSizesPerMonth)
 	{
 		auto year = yearEntry.first;
 		for (const auto monthEntry : yearEntry.second)
 		{
-			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tSize(MiB): " << monthEntry.second;
-			oFile << year << "," << monthEntry.first << "," << monthEntry.second << std::endl;
 			fSize += monthEntry.second;
+			repoInfo << "Year: " << year << "\tMonth: " << monthEntry.first << " \tSize(MiB): " << monthEntry.second;
+
+			oFile << year << "," << monthEntry.first << "," << monthEntry.second << "," << fSize << std::endl;
 		}
 	}
-	oFile << std::endl << "Total Size:," << fSize << "," << "MiB" << std::endl;
-	repoInfo << "Total Size: " << fSize << "MiB";
+
 }
 
 static uint64_t getNewUsersWithinDuration(
@@ -316,7 +314,7 @@ static void getNewUsersPerMonth(
 	else
 		oFile << "Number of new users per month" << std::endl;
 
-	oFile << "Year,Month,Users" << std::endl;
+	oFile << "Year,Month,Users,Total" << std::endl;
 	while (maxYear > year || (maxYear == year && maxMonth >= month))
 	{
 		int nextMonth = month == 12 ? 1 : month + 1;
@@ -327,13 +325,12 @@ static void getNewUsersPerMonth(
 		auto users = getNewUsersWithinDuration(handler, paidUsers, from, to, userStartDate);
 		nUsers += users;
 		repoInfo << "Year: " << year << "\tMonth: " << month << " \tUsers: " <<  users;
-		oFile << year << "," << month << "," << users << std::endl;
+		oFile << year << "," << month << "," << users << "," << nUsers << std::endl;
 	
 		year = nextYear;
 		month = nextMonth;
 	}
-	oFile << std::endl << "Total Users:," << nUsers << std::endl;
-	repoInfo << "Total Users: " << nUsers;
+
 }
 
 int main(int argc, char* argv[])
