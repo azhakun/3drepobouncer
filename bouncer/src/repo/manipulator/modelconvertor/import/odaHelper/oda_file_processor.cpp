@@ -50,11 +50,23 @@ OdaFileProcessor::~OdaFileProcessor()
 {
 }
 
-class RepoDgnServices : public OdExDgnSystemServices, public OdExDgnHostAppServices
-{
-protected:
-	ODRX_USING_HEAP_OPERATORS(OdExDgnSystemServices);
-};
+OdResult importDGN(OdDbBaseDatabase *pDb, const ODCOLORREF* pPallete, int numColors) {
+	OdResult ret = eOk;
+	OdUInt32 iCurEntData = 0;
+	try
+	{
+		odgsInitialize();
+
+		ret = CollectData(pDb, &m_entityDataArr, &m_pColladaMaterialData, &exportLights, pPallete, numColors, pEntity);
+	}
+	catch (...)
+	{
+		ret = eExtendedError;
+	}
+	return ret;
+}
+
+}
 
 int OdaFileProcessor::readFile() {
 
@@ -82,66 +94,87 @@ int OdaFileProcessor::readFile() {
 
 		if (!pDb.isNull())
 		{
-			// Set device palette from dgn color table
-
-			OdDgColorTablePtr clolortable = pDb->getColorTable();
-			OdGsDevicePtr pDevice = OdaVectoriseDevice::createObject(OdaVectoriseDevice::k3dDevice, collector);
-
 			const ODCOLORREF* refColors = OdDgColorTable::currentPalette(pDb);
 			ODGSPALETTE pPalCpy;
 			pPalCpy.insert(pPalCpy.begin(), refColors, refColors + 256);
-			OdDgModelPtr pModel = pDb->getActiveModelId().safeOpenObject();
+
+
+			OdDgElementId elementId = pDb->getActiveModelId();
+			if (elementId.isNull())
+			{
+				elementId = pDb->getDefaultModelId();
+				pDb->setActiveModelId(elementId);
+			}
+			OdDgElementId elementActId = pDb->getActiveModelId();
+			OdDgModelPtr pModel = elementId.safeOpenObject();
 			ODCOLORREF background = pModel->getBackground();
-			// Color with #255 always defines background. The background of the active model must be considered in the device palette.
-			pPalCpy[255] = background;
-			// Note: This method should be called to resolve "white background issue" before setting device palette
-			bool bCorrected = OdDgColorTable::correctPaletteForWhiteBackground(pPalCpy.asArrayPtr());
-			pDevice->setLogicalPalette(pPalCpy.asArrayPtr(), 256);
-			pDevice->setBackgroundColor(background);
 
-			// Find first active view.
-
-			OdDgViewPtr pView;
-
-			OdDgViewGroupPtr pViewGroup = pDb->getActiveViewGroupId().openObject(OdDg::kForRead);
-
+			OdDgElementId vectorizedViewId;
+			OdDgViewGroupPtr pViewGroup = pDb->getActiveViewGroupId().openObject();
+			if (pViewGroup.isNull())
+			{
+				//  Some files can have invalid id for View Group. Try to get & use a valid (recommended) View Group object.
+				pViewGroup = pDb->recommendActiveViewGroupId().openObject();
+				if (pViewGroup.isNull())
+				{
+					// Add View group
+					pModel->createViewGroup();
+					pModel->fitToView();
+					pViewGroup = pDb->recommendActiveViewGroupId().openObject();
+				}
+			}
 			if (!pViewGroup.isNull())
 			{
 				OdDgElementIteratorPtr pIt = pViewGroup->createIterator();
 				for (; !pIt->done(); pIt->step())
 				{
-					OdDgViewPtr pCurView = OdDgView::cast(pIt->item().openObject(OdDg::kForRead));
-
-					if (pCurView.get() && pCurView->getVisibleFlag())
+					OdDgViewPtr pView = OdDgView::cast(pIt->item().openObject());
+					if (pView.get() && pView->getVisibleFlag())
 					{
-						pView = pCurView;
+						vectorizedViewId = pIt->item();
 						break;
 					}
 				}
 			}
 
-			if (!pView.isNull())
+			if (vectorizedViewId.isNull() && !pViewGroup.isNull())
 			{
-				//create the context with OdDgView element given (to transmit some properties)
+				OdDgElementIteratorPtr pIt = pViewGroup->createIterator();
 
-				OdGiContextForDgDatabasePtr pDgnContext = OdGiContextForDgDatabase::createObject(pDb, pView);
-				pDgnContext->enableGsModel(true);
+				if (!pIt->done())
+				{
+					OdDgViewPtr pView = OdDgView::cast(pIt->item().openObject(OdDg::kForWrite));
 
-				OdDgElementId vectorizedViewId = pView->elementId();
-				OdDgElementId vectorizedModelId = pView->getModelId();
-
-				pDevice = OdGsDeviceForDgModel::setupModelView(vectorizedModelId, vectorizedViewId, pDevice, pDgnContext);
-
-				for (int iii = 0; iii < pDevice->numViews(); iii++)
-					pDevice->viewAt(iii)->setMode(OdGsView::kGouraudShaded);
-
-				OdGsDCRect screenRect(OdGsDCPoint(0, 0), OdGsDCPoint(1000, 1000));
-				pDevice->onSize(screenRect);
-
-				pDevice->update();
+					if (pView.get())
+					{
+						pView->setVisibleFlag(true);
+						vectorizedViewId = pIt->item();
+					}
+				}
 			}
 
-			OdaGiDumper::clearStlTriangles();
+			if (vectorizedViewId.isNull())
+			{
+				repoError << "Can not find an active view group or all its views are disabled";
+			}
+			else
+			{
+				// Color with #255 always defines backround. The background of the active model must be considered in the device palette.
+				pPalCpy[255] = background;
+				// Note: This method should be called to resolve "white background issue" before setting device palette
+				bool bCorrected = OdDgColorTable::correctPaletteForWhiteBackground(pPalCpy.asArrayPtr());
+
+				OdResult res = importDGN(pDb, pPalCpy.asArrayPtr(), 256);
+				if (eOk == res)
+				{
+					repoError << "Successfully exported.";
+				}
+				else
+				{
+					OdString tmp = OD_T("Error : ") + OdError(res).description();
+					repoError << tmp.c_str();
+				}
+			}
 		}
 
 		pDb = 0;
